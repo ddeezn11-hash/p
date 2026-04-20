@@ -1,0 +1,185 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Three.js Cube Array Viewer (Fixed)</title>
+
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; }
+
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: white;
+      font-family: monospace;
+      background: rgba(0,0,0,0.6);
+      padding: 10px;
+      max-height: 90vh;
+      overflow-y: auto;
+      white-space: pre;
+    }
+  </style>
+
+  <!-- ✔️ IMPORTANT FIX: import map solves "three" resolution error -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+    }
+  }
+  </script>
+</head>
+
+<body>
+<div id="info"></div>
+
+<script type="module">
+import * as THREE from "three";
+import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
+
+// ---------------- SCENE ----------------
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(
+  75,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  1000
+);
+
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// ---------------- CONTROLS ----------------
+const controls = new PointerLockControls(camera, document.body);
+scene.add(controls.getObject());
+
+controls.getObject().position.y = 1.6;
+
+// ---------------- CUBES ----------------
+const cubes = [];
+const rows = 5;
+const cols = 5;
+
+for (let i = 0; i < rows * cols; i++) {
+  const cube = new THREE.Mesh(
+    new THREE.BoxGeometry(),
+    new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+  );
+
+  cube.position.x = (i % cols) * 2;
+  cube.position.z = Math.floor(i / cols) * 2;
+  cube.position.y = 0;
+
+  scene.add(cube);
+  cubes.push(cube);
+}
+
+// ---------------- INPUT ----------------
+const keys = { w:false, a:false, s:false, d:false };
+let showUI = true;
+
+window.addEventListener("keydown", (e) => {
+  const k = e.key.toLowerCase();
+  if (k in keys) keys[k] = true;
+
+  if (k === "h") {
+    showUI = !showUI;
+    document.getElementById("info").style.display = showUI ? "block" : "none";
+  }
+});
+
+window.addEventListener("keyup", (e) => {
+  const k = e.key.toLowerCase();
+  if (k in keys) keys[k] = false;
+});
+
+// ---------------- MOVEMENT ----------------
+const speed = 0.1;
+
+function updateMovement() {
+  if (!controls.isLocked) return;
+
+  if (keys.w) controls.moveForward(speed);
+  if (keys.s) controls.moveForward(-speed);
+  if (keys.a) controls.moveRight(-speed);
+  if (keys.d) controls.moveRight(speed);
+}
+
+// ---------------- RAYCAST ----------------
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let selectedCube = null;
+
+window.addEventListener("click", (event) => {
+  if (!controls.isLocked) {
+    controls.lock();
+    return;
+  }
+
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+  raycaster.setFromCamera(mouse, camera);
+
+  const hits = raycaster.intersectObjects(cubes);
+
+  if (hits.length > 0) {
+    const cube = hits[0].object;
+
+    if (selectedCube) {
+      selectedCube.material.color.set(0x00ff00);
+    }
+
+    selectedCube = cube;
+    selectedCube.material.color.set(0xff0000);
+  }
+});
+
+// ---------------- UI ----------------
+function updateUI() {
+  if (!showUI) return;
+
+  const info = document.getElementById("info");
+  const p = controls.getObject().position;
+
+  let text = "CUBES:\n\n";
+
+  cubes.forEach((c, i) => {
+    text += `Cube ${i}: ${c.position.x.toFixed(1)}, ${c.position.y.toFixed(1)}, ${c.position.z.toFixed(1)}\n`;
+  });
+
+  text += `\nPLAYER:\n${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)}\n`;
+
+  if (selectedCube) {
+    text += `\nSELECTED:\n${selectedCube.position.x.toFixed(2)}, ${selectedCube.position.y.toFixed(2)}, ${selectedCube.position.z.toFixed(2)}\n`;
+  }
+
+  info.textContent = text;
+}
+
+// ---------------- LOOP ----------------
+function animate() {
+  requestAnimationFrame(animate);
+
+  updateMovement();
+  updateUI();
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+// ---------------- RESIZE ----------------
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+</script>
+</body>
+</html>
